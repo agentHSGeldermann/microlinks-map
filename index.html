@@ -32,17 +32,17 @@
     }
 
     header { text-align: center; padding: 2rem 1rem 1rem; }
-    header h1 { font-size: 2rem; color: #f0fdf4; letter-spacing: 0.04em; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
-    header p  { margin-top: 0.4rem; color: #a7c4a0; font-size: 0.95rem; font-style: italic; }
+    header h1 { font-size: 3rem; color: #f0fdf4; letter-spacing: 0.04em; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+    header p  { margin-top: 0.5rem; color: #a7c4a0; font-size: 1.25rem; font-style: italic; }
 
     #stats {
       display: flex; gap: 2rem; justify-content: center;
-      padding: 0.5rem 1rem 0.75rem; font-size: 0.85rem; color: #7aab72;
+      padding: 0.5rem 1rem 0.75rem; font-size: 1.1rem; color: #7aab72;
     }
     #stats span strong { color: #86efac; }
 
     #map-container {
-      width: 100%; max-width: 960px; padding: 0 1rem;
+      width: 100%;
       position: relative;
     }
 
@@ -140,6 +140,112 @@
       text-align: center; padding: 0.75rem 1rem;
       color: #5a8a62; font-size: 0.85rem; min-height: 2rem;
     }
+
+    /* ── Main layout ── */
+    #main-layout {
+      display: flex;
+      align-items: flex-start;
+      gap: 0;
+      width: 100%;
+      max-width: 1600px;
+      padding: 0 1rem;
+    }
+
+    #map-section { flex: 1; min-width: 0; padding-left: 0.75rem; }
+
+    /* ── Sidebar wrapper (holds panel + toggle tab) ── */
+    #sidebar-wrapper {
+      display: flex;
+      align-items: flex-start;
+      flex-shrink: 0;
+    }
+
+    #sidebar {
+      width: 170px;
+      background: rgba(18,32,22,0.88);
+      border: 1px solid #2d5a38;
+      border-radius: 8px 0 0 8px;
+      overflow-y: auto;
+      max-height: 600px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      transition: width 0.25s ease, opacity 0.25s ease, padding 0.25s ease;
+      overflow-x: hidden;
+    }
+
+    #sidebar.collapsed {
+      width: 0;
+      opacity: 0;
+      pointer-events: none;
+      border-width: 0;
+    }
+
+    /* The little tab button on the right edge of the sidebar */
+    #sidebar-tab {
+      display: flex; align-items: center; justify-content: center;
+      width: 18px; min-height: 60px;
+      background: rgba(18,32,22,0.88);
+      border: 1px solid #2d5a38;
+      border-left: none;
+      border-radius: 0 6px 6px 0;
+      cursor: pointer;
+      color: #4a7a52;
+      font-size: 0.65rem;
+      writing-mode: vertical-rl;
+      user-select: none;
+      transition: background 0.15s, color 0.15s;
+      margin-top: 2px;
+      box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+    }
+    #sidebar-tab:hover { background: rgba(30,58,38,0.95); color: #86efac; }
+    #sidebar-tab .tab-arrow { font-style: normal; font-size: 0.7rem; }
+
+    #sidebar-title {
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #4a7a52;
+      padding: 0.6rem 0.7rem 0.4rem;
+      border-bottom: 1px solid #1e3a26;
+      white-space: nowrap;
+    }
+
+    .state-group { border-bottom: 1px solid #1a2f1e; }
+    .state-group:last-child { border-bottom: none; }
+
+    .state-toggle {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; background: none; border: none;
+      padding: 0.38rem 0.7rem;
+      font-family: 'Georgia', serif;
+      font-size: 0.75rem; font-weight: bold;
+      cursor: pointer; text-align: left;
+      transition: background 0.12s;
+      white-space: nowrap;
+    }
+    .state-toggle.has-courses { color: #86efac; }
+    .state-toggle.has-courses:hover { background: rgba(134,239,172,0.06); }
+    .state-toggle.no-courses  { color: #c0392b; cursor: default; }
+
+    .state-arrow {
+      font-size: 0.55rem; color: #4a7a52;
+      transition: transform 0.2s; flex-shrink: 0;
+    }
+    .state-toggle.open .state-arrow { transform: rotate(90deg); }
+
+    .course-list { display: none; padding: 0.1rem 0 0.35rem 0; }
+    .course-list.open { display: block; }
+
+    .sidebar-course {
+      padding: 0.22rem 0.7rem 0.22rem 1.1rem;
+      font-size: 0.68rem;
+      color: #a7c4a0;
+      line-height: 1.35;
+      cursor: pointer;
+      transition: color 0.12s;
+    }
+    .sidebar-course:hover { color: #86efac; text-decoration: underline; }
+    .sidebar-course span { color: #4a7a52; font-style: italic; }
+    .sidebar-course:hover span { color: #5a9a62; }
   </style>
 </head>
 <body>
@@ -155,15 +261,29 @@
   <span><strong id="stat-states">&#x2014;</strong> states</span>
 </div>
 
-<div id="status">Loading map&#x2026;</div>
+<div id="main-layout">
 
-<div id="map-container">
-  <svg id="map" viewBox="0 0 960 600"></svg>
-  <div id="zoom-controls">
-    <button class="zoom-btn" id="btn-zoom-in"  title="Zoom in">+</button>
-    <button class="zoom-btn" id="btn-zoom-out" title="Zoom out">&#x2212;</button>
-    <button class="zoom-btn" id="btn-zoom-reset" title="Reset" style="font-size:0.75rem">&#x2715;</button>
+  <div id="sidebar-wrapper">
+    <div id="sidebar">
+      <div id="sidebar-title">Courses by State</div>
+    </div>
+    <div id="sidebar-tab" title="Toggle sidebar">
+      <span class="tab-arrow">&#x25C4;</span>
+    </div>
   </div>
+
+  <div id="map-section">
+    <div id="status">Loading map&#x2026;</div>
+    <div id="map-container">
+      <svg id="map" viewBox="0 0 960 600"></svg>
+      <div id="zoom-controls">
+        <button class="zoom-btn" id="btn-zoom-in"  title="Zoom in">+</button>
+        <button class="zoom-btn" id="btn-zoom-out" title="Zoom out">&#x2212;</button>
+        <button class="zoom-btn" id="btn-zoom-reset" title="Reset" style="font-size:0.75rem">&#x2715;</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <div id="tooltip"></div>
@@ -179,6 +299,47 @@ const MAP_W = 960, MAP_H = 600;
 const statusEl = document.getElementById('status');
 const tooltip  = document.getElementById('tooltip');
 let pinnedKey  = null;
+
+// Global marker registry: locKey → { allCourses, members, clusterKey }
+const markerRegistry = {};
+
+// Pan map to a base-coord point, then show its tooltip
+let _mapZoomRef = null;  // set in drawMap
+let _svgRef     = null;
+
+function focusMarker(locKey) {
+  const entry = markerRegistry[locKey];
+  if (!entry) return;
+
+  // Find the SVG marker element whose data-loc contains this locKey
+  const allMarkers = document.querySelectorAll('[data-loc]');
+  let targetG = null;
+  for (const m of allMarkers) {
+    if (m.getAttribute('data-loc').split('||').includes(locKey)) { targetG = m; break; }
+  }
+
+  // Pan map so the flag is centred, then show tooltip
+  if (targetG && _mapZoomRef && _svgRef) {
+    // Get the flag's current screen position from its transform
+    const match = targetG.getAttribute('transform').match(/translate\(([^,]+),([^)]+)\)/);
+    if (match) {
+      const sx = parseFloat(match[1]), sy = parseFloat(match[2]);
+      const svgEl = document.getElementById('map');
+      const rect  = svgEl.getBoundingClientRect();
+      const scaleX = rect.width / 960, scaleY = rect.height / 600;
+      const screenX = rect.left + sx * scaleX;
+      const screenY = rect.top  + sy * scaleY;
+
+      // Show tooltip pinned at the flag's current screen position
+      pinnedKey = entry.clusterKey;
+      showTooltip(
+        { clientX: screenX, clientY: screenY },
+        entry.allCourses, entry.clusterKey, true,
+        entry.members.length > 1 ? entry.members : null
+      );
+    }
+  }
+}
 
 // ── Geo cache ─────────────────────────────────────────────────────────────────
 function loadGeoCache() {
@@ -337,6 +498,72 @@ function hideTooltip() { tooltip.classList.remove('visible', 'pinned'); }
 function unpin() { pinnedKey = null; hideTooltip(); }
 window.unpin = unpin;
 
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+const ALL_STATES = [
+  'AK','AL','AR','AZ','CA','CO','CT','DE','FL','GA',
+  'HI','IA','ID','IL','IN','KS','KY','LA','MA','MD',
+  'ME','MI','MN','MO','MS','MT','NC','ND','NE','NH',
+  'NJ','NM','NV','NY','OH','OK','OR','PA','RI','SC',
+  'SD','TN','TX','UT','VA','VT','WA','WI','WV','WY'
+];
+
+function buildSidebar(rows) {
+  const sidebar = document.getElementById('sidebar');
+
+  // Group by state
+  const byState = {};
+  for (const row of rows) {
+    const s = row.state.trim().toUpperCase();
+    if (!byState[s]) byState[s] = [];
+    byState[s].push(row);
+  }
+
+  for (const state of ALL_STATES) {
+    const courses = byState[state] ? byState[state].slice().sort((a,b) => a.links.localeCompare(b.links)) : [];
+    const hasCourses = courses.length > 0;
+
+    const group = document.createElement('div');
+    group.className = 'state-group';
+
+    const btn = document.createElement('button');
+    btn.className = 'state-toggle ' + (hasCourses ? 'has-courses' : 'no-courses');
+
+    if (hasCourses) {
+      btn.innerHTML = state + '<span class="state-arrow">&#x25B6;</span>';
+      const list = document.createElement('div');
+      list.className = 'course-list';
+      for (const course of courses) {
+        const item = document.createElement('div');
+        item.className = 'sidebar-course';
+        const linker = course.linkerman ? ' <span>(' + escHtml(course.linkerman) + ')</span>' : '';
+        item.innerHTML = escHtml(course.links) + linker;
+        const locKey = course.town + '|' + course.state;
+        item.addEventListener('click', (e) => { e.stopPropagation(); focusMarker(locKey); });
+        list.appendChild(item);
+      }
+      btn.addEventListener('click', () => {
+        btn.classList.toggle('open');
+        list.classList.toggle('open');
+      });
+      group.appendChild(btn);
+      group.appendChild(list);
+    } else {
+      btn.innerHTML = state;
+      group.appendChild(btn);
+    }
+
+    sidebar.appendChild(group);
+  }
+
+  // Collapse toggle
+  const tab   = document.getElementById('sidebar-tab');
+  const arrow = tab.querySelector('.tab-arrow');
+  tab.addEventListener('click', () => {
+    const collapsed = sidebar.classList.toggle('collapsed');
+    arrow.innerHTML = collapsed ? '&#x25BA;' : '&#x25C4;';
+  });
+}
+
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -402,29 +629,34 @@ async function drawMap(coursesByLocation) {
       if (isCluster) {
         const n = allCourses.length;
         // back flag
-        g.append('line').attr('x1',5).attr('y1',4).attr('x2',5).attr('y2',-28)
-          .attr('stroke','#94a3b8').attr('stroke-width',1.8).attr('stroke-linecap','round');
-        g.append('polygon').attr('points','5,-28 21,-21 5,-14').attr('fill','#60a5fa').attr('opacity',0.65);
+        g.append('line').attr('x1',7).attr('y1',5).attr('x2',7).attr('y2',-40)
+          .attr('stroke','#94a3b8').attr('stroke-width',2).attr('stroke-linecap','round');
+        g.append('polygon').attr('points','7,-40 28,-31 7,-22').attr('fill','#60a5fa').attr('opacity',0.65);
         // front flag
-        g.append('line').attr('x1',0).attr('y1',4).attr('x2',0).attr('y2',-34)
-          .attr('stroke','#cbd5e1').attr('stroke-width',2).attr('stroke-linecap','round');
-        g.append('polygon').attr('points','0,-34 17,-27 0,-20').attr('fill','#60a5fa');
+        g.append('line').attr('x1',0).attr('y1',5).attr('x2',0).attr('y2',-48)
+          .attr('stroke','#cbd5e1').attr('stroke-width',2.5).attr('stroke-linecap','round');
+        g.append('polygon').attr('points','0,-48 24,-38 0,-28').attr('fill','#60a5fa');
         // badge
-        g.append('circle').attr('cx',14).attr('cy',-38).attr('r',10)
-          .attr('fill','#1e3a5f').attr('stroke','#60a5fa').attr('stroke-width',1.8);
-        g.append('text').attr('x',14).attr('y',-34)
-          .attr('text-anchor','middle').attr('font-size','10px')
+        g.append('circle').attr('cx',20).attr('cy',-54).attr('r',13)
+          .attr('fill','#1e3a5f').attr('stroke','#60a5fa').attr('stroke-width',2);
+        g.append('text').attr('x',20).attr('y',-49)
+          .attr('text-anchor','middle').attr('font-size','13px')
           .attr('font-family','Georgia,serif').attr('font-weight','bold')
           .attr('fill','#e2e8f0').text(n);
       } else {
         const col = '#e63946';
-        g.append('line').attr('class','flag-pole').attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',-36);
-        g.append('polygon').attr('class','flag-shape').attr('points','0,-36 18,-29 0,-22').attr('fill',col);
+        g.append('line').attr('class','flag-pole').attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',-50);
+        g.append('polygon').attr('class','flag-shape').attr('points','0,-50 26,-41 0,-32').attr('fill',col);
+      }
+
+      // Register in global registry so sidebar can look up by individual locKey
+      for (const m of members) {
+        markerRegistry[m.locKey] = { allCourses, members, clusterKey };
       }
 
       // Hit area
       g.append('rect')
-        .attr('x',-6).attr('y',-48).attr('width',30).attr('height',52)
+        .attr('x',-6).attr('y',-64).attr('width',38).attr('height',68)
         .attr('fill','transparent')
         .on('mousemove', (ev) => { if (pinnedKey !== clusterKey) showTooltip(ev, allCourses, clusterKey, false, isCluster ? members : null); })
         .on('mouseleave', ()  => { if (pinnedKey !== clusterKey) hideTooltip(); })
@@ -435,6 +667,9 @@ async function drawMap(coursesByLocation) {
         });
     }
   }
+
+  // Store refs for focusMarker
+  _svgRef = svg;
 
   // ── Zoom behaviour ────────────────────────────────────────────────────────
   let currentT = d3.zoomIdentity;
@@ -449,6 +684,7 @@ async function drawMap(coursesByLocation) {
       if (pinnedKey) unpin();   // dismiss tooltip while panning/zooming
     });
 
+  _mapZoomRef = zoom;
   svg.call(zoom)
     .on('dblclick.zoom', null);  // disable default dblclick zoom (we handle below)
 
@@ -493,6 +729,8 @@ async function main() {
 
   // Kick off og:image fetches in background — no await, tooltips fill in from cache
   prefetchOgImages(rows);
+
+  buildSidebar(rows);
 
   const cache = loadGeoCache();
   const uniqueLocs = [...new Set(rows.map(r => r.town + '|' + r.state))];
