@@ -81,6 +81,7 @@
       position: fixed;
       background: rgba(18,32,22,0.97); border: 1px solid #2d5a38;
       border-radius: 8px; padding: 0.85rem 1rem; max-width: 290px;
+      max-height: 80vh; overflow-y: auto;
       pointer-events: none; opacity: 0; transition: opacity 0.15s;
       z-index: 100; box-shadow: 0 8px 24px rgba(0,0,0,0.6);
     }
@@ -274,8 +275,8 @@ function buildCourseHTML(course) {
   if (imgUrl) {
     thumbHTML = '<img class="course-thumb" src="' + escHtml(imgUrl) + '" alt="" '
       + 'onerror="this.classList.add(\'hidden\')">';
-  } else if (course.website) {
-    thumbHTML = '<div class="course-thumb-placeholder">⛳</div>';
+  } else {
+    thumbHTML = '<img class="course-thumb" src="./360_F_776046055_cPAJImDeUOia9ht8Zqt4BGB1C5GePybr.jpg" alt="">';
   }
 
   return '<div class="tooltip-course">'
@@ -283,7 +284,7 @@ function buildCourseHTML(course) {
     + (thumbHTML ? thumbHTML : '')
     + '<div class="course-text">'
     + '<div class="tooltip-name">' + name + '</div>'
-    + '<div class="tooltip-meta">Submitted by ' + escHtml(sub) + '</div>'
+    + '<div class="tooltip-meta">Linkerman(s): ' + escHtml(sub) + '</div>'
     + (course.notes ? '<div class="tooltip-notes">' + escHtml(course.notes) + '</div>' : '')
     + '</div></div></div>';
 }
@@ -296,7 +297,6 @@ function buildTooltipHTML(allCourses, pinned, members) {
     if (c.town) html += '<div class="tooltip-location">' + escHtml(c.town) + ', ' + escHtml(c.state) + '</div>';
     for (const course of grp.courses) html += buildCourseHTML(course);
   }
-  if (!pinned) html += '<div class="tooltip-hint">Click to pin &amp; follow links</div>';
   return html;
 }
 
@@ -307,12 +307,26 @@ function showTooltip(event, allCourses, key, pin, members) {
   positionTooltip(event);
 }
 function positionTooltip(event) {
-  const pad = 14; let x = event.clientX + pad, y = event.clientY + pad;
+  const pad = 14;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const cx = event.clientX, cy = event.clientY;
+
+  // Force layout so we get real dimensions
   tooltip.style.left = '0'; tooltip.style.top = '0';
-  const tw = tooltip.offsetWidth || 290, th = tooltip.offsetHeight || 140;
-  if (x + tw > window.innerWidth  - pad) x = event.clientX - tw - pad;
-  if (y + th > window.innerHeight - pad) y = event.clientY - th - pad;
-  tooltip.style.left = x + 'px'; tooltip.style.top = y + 'px';
+  const tw = tooltip.offsetWidth  || 290;
+  const th = tooltip.offsetHeight || 140;
+
+  // Prefer right of cursor; fall back to left
+  let x = (cx + pad + tw <= vw - pad) ? cx + pad : cx - tw - pad;
+  // Clamp to viewport horizontally
+  x = Math.max(pad, Math.min(x, vw - tw - pad));
+
+  // Vertical: try to centre on cursor, then clamp to viewport
+  let y = cy - th / 2;
+  y = Math.max(pad, Math.min(y, vh - th - pad));
+
+  tooltip.style.left = x + 'px';
+  tooltip.style.top  = y + 'px';
 }
 function hideTooltip() { tooltip.classList.remove('visible', 'pinned'); }
 function unpin() { pinnedKey = null; hideTooltip(); }
