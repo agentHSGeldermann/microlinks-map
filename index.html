@@ -25,29 +25,30 @@
           rgba(0,0,0,0.02) 10px, rgba(0,0,0,0.02) 20px);
       color: #e2e8f0;
       font-family: 'Georgia', serif;
-      min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
       align-items: center;
     }
 
-    header { text-align: center; padding: 2rem 1rem 1rem; }
-    header h1 { font-size: 3rem; color: #f0fdf4; letter-spacing: 0.04em; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
-    header p  { margin-top: 0.5rem; color: #a7c4a0; font-size: 1.25rem; font-style: italic; }
+    header { text-align: center; padding: 1rem 1rem 0.4rem; flex-shrink: 0; }
+    header h1 { font-size: 2.4rem; color: #f0fdf4; letter-spacing: 0.04em; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+    header p  { margin-top: 0.25rem; color: #a7c4a0; font-size: 1.1rem; font-style: italic; }
 
     #stats {
-      display: flex; gap: 2rem; justify-content: center;
-      padding: 0.5rem 1rem 0.75rem; font-size: 1.1rem; color: #7aab72;
+      display: flex; gap: 2rem; justify-content: center; flex-shrink: 0;
+      padding: 0.3rem 1rem 0.4rem; font-size: 1rem; color: #7aab72;
     }
     #stats span strong { color: #86efac; }
 
     #map-container {
-      width: 100%;
-      position: relative;
+      width: 100%; height: 100%;
+      position: relative; min-height: 0;
     }
 
     svg#map {
-      width: 100%; height: auto; display: block;
+      width: 100%; height: 100%; display: block;
       border-radius: 8px; box-shadow: 0 4px 32px rgba(0,0,0,0.4);
       cursor: grab;
     }
@@ -137,40 +138,75 @@
     .course-text { flex: 1; min-width: 0; }
 
     #status {
-      text-align: center; padding: 0.75rem 1rem;
-      color: #5a8a62; font-size: 0.85rem; min-height: 2rem;
+      text-align: center; padding: 0.3rem 1rem;
+      color: #5a8a62; font-size: 0.85rem; flex-shrink: 0;
     }
 
     /* ── Main layout ── */
     #main-layout {
       display: flex;
-      align-items: flex-start;
+      align-items: stretch;
       gap: 0;
       width: 100%;
       max-width: 1600px;
-      padding: 0 1rem;
+      padding: 0 1rem 1rem;
+      flex: 1;
+      min-height: 0;
     }
 
-    #map-section { flex: 1; min-width: 0; padding-left: 0.75rem; }
+    #map-section { flex: 1; min-width: 0; min-height: 0; padding-left: 0.75rem; display: flex; flex-direction: column; }
 
     /* ── Sidebar wrapper (holds panel + toggle tab) ── */
     #sidebar-wrapper {
       display: flex;
-      align-items: flex-start;
+      align-items: stretch;
       flex-shrink: 0;
     }
 
+    /* Sidebar is a flex column: scroll-area on left, pill strip on right */
     #sidebar {
       width: 170px;
       background: rgba(18,32,22,0.88);
       border: 1px solid #2d5a38;
       border-radius: 8px 0 0 8px;
-      overflow-y: auto;
-      max-height: 600px;
+      overflow: hidden;            /* clip children */
       box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-      transition: width 0.25s ease, opacity 0.25s ease, padding 0.25s ease;
-      overflow-x: hidden;
+      transition: width 0.25s ease, opacity 0.25s ease;
+      display: flex;
     }
+
+    /* Scrollable state list — takes up most of the sidebar width */
+    #sidebar-scroll {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      /* thin webkit scrollbar */
+      scrollbar-width: thin;
+      scrollbar-color: transparent transparent; /* hidden until hover */
+    }
+    #sidebar-scroll:hover {
+      scrollbar-color: #4a8a5a transparent;
+    }
+    #sidebar-scroll::-webkit-scrollbar { width: 0px; } /* hidden until hover */
+    #sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+    #sidebar-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
+    #sidebar-scroll:hover::-webkit-scrollbar { width: 5px; }
+    #sidebar-scroll:hover::-webkit-scrollbar-thumb { background: #4a8a5a; }
+
+    /* The pill strip — right-hand column of the sidebar, handles collapse */
+    #sidebar-pill {
+      width: 18px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #4a7a52;
+      transition: color 0.15s, background 0.15s;
+      background: rgba(18,32,22,0.5);
+      border-left: 1px solid #1e3a26;
+    }
+    #sidebar-pill:hover { color: #86efac; background: rgba(30,58,38,0.6); }
 
     #sidebar.collapsed {
       width: 0;
@@ -179,25 +215,25 @@
       border-width: 0;
     }
 
-    /* The little tab button on the right edge of the sidebar */
+    /* The outer tab (expand-only when sidebar is collapsed) */
     #sidebar-tab {
       display: flex; align-items: center; justify-content: center;
-      width: 18px; min-height: 60px;
+      width: 18px;
       background: rgba(18,32,22,0.88);
       border: 1px solid #2d5a38;
       border-left: none;
       border-radius: 0 6px 6px 0;
       cursor: pointer;
       color: #4a7a52;
-      font-size: 0.65rem;
-      writing-mode: vertical-rl;
       user-select: none;
       transition: background 0.15s, color 0.15s;
       margin-top: 2px;
       box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+      /* Hidden when sidebar is open; shown when collapsed via JS */
+      display: none;
     }
+    #sidebar-tab.visible { display: flex; }
     #sidebar-tab:hover { background: rgba(30,58,38,0.95); color: #86efac; }
-    #sidebar-tab .tab-arrow { font-style: normal; font-size: 0.7rem; }
 
     #sidebar-title {
       font-size: 0.6rem;
@@ -265,10 +301,19 @@
 
   <div id="sidebar-wrapper">
     <div id="sidebar">
-      <div id="sidebar-title">Courses by State</div>
+      <div id="sidebar-scroll">
+        <div id="sidebar-title">Courses by State</div>
+      </div>
+      <div id="sidebar-pill" title="Collapse sidebar">
+        <svg width="5" height="24" viewBox="0 0 5 24">
+          <line x1="2.5" y1="1" x2="2.5" y2="23" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+      </div>
     </div>
-    <div id="sidebar-tab" title="Toggle sidebar">
-      <span class="tab-arrow">&#x25C4;</span>
+    <div id="sidebar-tab" title="Expand sidebar">
+      <svg width="5" height="24" viewBox="0 0 5 24">
+        <line x1="2.5" y1="1" x2="2.5" y2="23" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      </svg>
     </div>
   </div>
 
@@ -457,7 +502,13 @@ function buildCourseHTML(course) {
 
 function buildTooltipHTML(allCourses, pinned, members) {
   let html = '<div class="tooltip-header"><button class="tooltip-close" onclick="unpin()">&#x2715;</button></div>';
-  const groups = (members && members.length > 1) ? members : [{ courses: allCourses }];
+  const groups = (members && members.length > 1)
+    ? members.slice().sort((a, b) => {
+        const sa = a.courses[0].state, sb = b.courses[0].state;
+        if (sa !== sb) return sa.localeCompare(sb);
+        return a.courses[0].town.localeCompare(b.courses[0].town);
+      })
+    : [{ courses: allCourses }];
   for (const grp of groups) {
     const c = grp.courses[0];
     if (c.town) html += '<div class="tooltip-location">' + escHtml(c.town) + ', ' + escHtml(c.state) + '</div>';
@@ -508,7 +559,8 @@ const ALL_STATES = [
 ];
 
 function buildSidebar(rows) {
-  const sidebar = document.getElementById('sidebar');
+  const sidebar       = document.getElementById('sidebar');
+  const sidebarScroll = document.getElementById('sidebar-scroll');
 
   // Group by state
   const byState = {};
@@ -552,15 +604,22 @@ function buildSidebar(rows) {
       group.appendChild(btn);
     }
 
-    sidebar.appendChild(group);
+    sidebarScroll.appendChild(group);
   }
 
-  // Collapse toggle
-  const tab   = document.getElementById('sidebar-tab');
-  const arrow = tab.querySelector('.tab-arrow');
+  // Pill (inside sidebar) → collapse
+  const pill = document.getElementById('sidebar-pill');
+  const tab  = document.getElementById('sidebar-tab');
+
+  pill.addEventListener('click', () => {
+    sidebar.classList.add('collapsed');
+    tab.classList.add('visible');
+  });
+
+  // Outer tab → expand only
   tab.addEventListener('click', () => {
-    const collapsed = sidebar.classList.toggle('collapsed');
-    arrow.innerHTML = collapsed ? '&#x25BA;' : '&#x25C4;';
+    sidebar.classList.remove('collapsed');
+    tab.classList.remove('visible');
   });
 }
 
