@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MicroLinks Map</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson@3/dist/topojson.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: #1a3a22;
+      background-image:
+        repeating-linear-gradient(135deg,
+          rgba(255,255,255,0) 0px, rgba(255,255,255,0) 10px,
+          rgba(0,0,0,0.035) 10px, rgba(0,0,0,0.035) 20px),
+        repeating-linear-gradient(45deg,
+          rgba(255,255,255,0) 0px, rgba(255,255,255,0) 10px,
+          rgba(0,0,0,0.02) 10px, rgba(0,0,0,0.02) 20px);
+      color: #e2e8f0;
+      font-family: 'Georgia', serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    header { text-align: center; padding: 2rem 1rem 1rem; }
+    header h1 { font-size: 2rem; color: #f0fdf4; letter-spacing: 0.04em; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+    header p  { margin-top: 0.4rem; color: #a7c4a0; font-size: 0.95rem; font-style: italic; }
+
+    #stats {
+      display: flex; gap: 2rem; justify-content: center;
+      padding: 0.5rem 1rem 0.75rem; font-size: 0.85rem; color: #7aab72;
+    }
+    #stats span strong { color: #86efac; }
+
+    #map-container {
+      width: 100%; max-width: 960px; padding: 0 1rem;
+      position: relative;
+    }
+
+    svg#map {
+      width: 100%; height: auto; display: block;
+      border-radius: 8px; box-shadow: 0 4px 32px rgba(0,0,0,0.4);
+      cursor: grab;
+    }
+    svg#map:active { cursor: grabbing; }
+
+    .state        { fill: #1e2d38; stroke: #2d4455; stroke-width: 0.5; }
+    .state-border { fill: none; stroke: #2d4455; stroke-width: 1; }
+    .nation-border{ fill: none; stroke: #3d5a6b; stroke-width: 1.5; }
+
+    /* Zoom controls */
+    #zoom-controls {
+      position: absolute;
+      bottom: 18px; right: 24px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .zoom-btn {
+      width: 30px; height: 30px;
+      background: rgba(18,32,22,0.9); border: 1px solid #2d5a38;
+      border-radius: 6px; color: #86efac; font-size: 1.1rem;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      line-height: 1; transition: background 0.15s;
+    }
+    .zoom-btn:hover { background: rgba(30,58,38,0.95); }
+
+    /* Flag markers */
+    .flag-pole  { stroke: #cbd5e1; stroke-width: 2; stroke-linecap: round; }
+    .course-flag { cursor: pointer; filter: drop-shadow(0 0 3px rgba(230,57,70,0.4)); }
+    .course-flag:hover { filter: drop-shadow(0 0 8px rgba(230,57,70,0.9)); }
+    .course-flag.multi { filter: drop-shadow(0 0 3px rgba(230,57,70,0.4)); }
+    .course-flag.multi:hover { filter: drop-shadow(0 0 8px rgba(230,57,70,0.9)); }
+    .course-cluster { cursor: pointer; filter: drop-shadow(0 0 4px rgba(96,165,250,0.5)); }
+    .course-cluster:hover { filter: drop-shadow(0 0 9px rgba(96,165,250,1)); }
+
+    /* Tooltip */
+    #tooltip {
+      position: fixed;
+      background: rgba(18,32,22,0.97); border: 1px solid #2d5a38;
+      border-radius: 8px; padding: 0.85rem 1rem; max-width: 290px;
+      pointer-events: none; opacity: 0; transition: opacity 0.15s;
+      z-index: 100; box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+    #tooltip.visible { opacity: 1; }
+    #tooltip.pinned  { pointer-events: auto; border-color: #3d7a4a; }
+
+    .tooltip-header { display: flex; justify-content: flex-end; margin-bottom: 0.25rem; }
+    .tooltip-location {
+      font-size: 0.8rem; color: #7aab72;
+      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.3rem;
+    }
+    .tooltip-close {
+      background: none; border: none; color: #4a7a52;
+      font-size: 1rem; cursor: pointer; line-height: 1;
+      padding: 0 0 0 0.5rem; display: none;
+    }
+    .tooltip-close:hover { color: #86efac; }
+    #tooltip.pinned .tooltip-close { display: block; }
+
+    .tooltip-course {
+      border-bottom: 1px solid #1e3a26; padding-bottom: 0.6rem; margin-bottom: 0.6rem;
+    }
+    .tooltip-course:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+    .tooltip-name { font-size: 1rem; font-weight: bold; color: #f0fdf4; margin-bottom: 0.2rem; }
+    .tooltip-name a { color: #86efac; text-decoration: none; }
+    .tooltip-name a:hover { text-decoration: underline; }
+    .tooltip-meta  { font-size: 0.8rem; color: #7aab72; margin-bottom: 0.1rem; }
+    .tooltip-notes { font-size: 0.78rem; color: #4a7a52; font-style: italic; margin-top: 0.2rem; }
+    .tooltip-hint  { font-size: 0.72rem; color: #3d5a45; margin-top: 0.5rem; text-align: center; }
+
+    #status {
+      text-align: center; padding: 0.75rem 1rem;
+      color: #5a8a62; font-size: 0.85rem; min-height: 2rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>&#x26F3; MicroLinks Map</h1>
+  <p>Every course we can remember</p>
+</header>
+
+<div id="stats">
+  <span><strong id="stat-courses">&#x2014;</strong> courses</span>
+  <span><strong id="stat-towns">&#x2014;</strong> towns</span>
+  <span><strong id="stat-states">&#x2014;</strong> states</span>
+</div>
+
+<div id="status">Loading map&#x2026;</div>
+
+<div id="map-container">
+  <svg id="map" viewBox="0 0 960 600"></svg>
+  <div id="zoom-controls">
+    <button class="zoom-btn" id="btn-zoom-in"  title="Zoom in">+</button>
+    <button class="zoom-btn" id="btn-zoom-out" title="Zoom out">&#x2212;</button>
+    <button class="zoom-btn" id="btn-zoom-reset" title="Reset" style="font-size:0.75rem">&#x2715;</button>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTIsnnFyzlvmykg6u-uu83Q4pF9aYGjjTYY8zvNC7jBzvwZcmU6l55DvYZBoFmP9kFAXC2oofcFEXyx/pub?output=csv';
+const GEOCACHE_KEY  = 'minigolf_geocache_v1';
+const GEO_DELAY_MS  = 1100;
+const CLUSTER_PX    = 44;   // screen-pixel clustering radius (fixed regardless of zoom)
+const MAP_W = 960, MAP_H = 600;
+
+const statusEl = document.getElementById('status');
+const tooltip  = document.getElementById('tooltip');
+let pinnedKey  = null;
+
+// ── Geo cache ─────────────────────────────────────────────────────────────────
+function loadGeoCache() {
+  try { return JSON.parse(localStorage.getItem(GEOCACHE_KEY)) || {}; } catch { return {}; }
+}
+function saveGeoCache(c) { localStorage.setItem(GEOCACHE_KEY, JSON.stringify(c)); }
+
+async function geocode(town, state, cache) {
+  const key = (town + ',' + state).toLowerCase();
+  if (cache[key]) return cache[key];
+  const q = encodeURIComponent(town + ', ' + state + ', USA');
+  try {
+    const data = await fetch('https://nominatim.openstreetmap.org/search?q=' + q + '&format=json&countrycodes=us&limit=1',
+      { headers: { 'Accept-Language': 'en' } }).then(r => r.json());
+    if (data.length) {
+      const coords = { lat: +data[0].lat, lon: +data[0].lon };
+      cache[key] = coords; saveGeoCache(cache); return coords;
+    }
+  } catch(e) { console.warn('geocode fail', town, state, e); }
+  return null;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── CSV ───────────────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+  return lines.slice(1).map(line => {
+    const vals = parseCSVLine(line);
+    if (vals.every(v => !v.trim())) return null;
+    const obj = {}; headers.forEach((h, i) => { obj[h] = (vals[i] || '').trim(); }); return obj;
+  }).filter(Boolean);
+}
+function parseCSVLine(line) {
+  const r = []; let cur = '', q = false;
+  for (const c of line) {
+    if (c === '"') { q = !q; }
+    else if (c === ',' && !q) { r.push(cur); cur = ''; }
+    else cur += c;
+  }
+  r.push(cur); return r;
+}
+
+// ── Clustering (screen space) ─────────────────────────────────────────────────
+function clusterPoints(points, threshold) {
+  const assigned = new Array(points.length).fill(-1);
+  const clusters = [];
+  for (let i = 0; i < points.length; i++) {
+    if (assigned[i] >= 0) continue;
+    const cluster = [i]; assigned[i] = clusters.length;
+    for (let j = i + 1; j < points.length; j++) {
+      if (assigned[j] >= 0) continue;
+      const dx = points[i].sx - points[j].sx, dy = points[i].sy - points[j].sy;
+      if (Math.sqrt(dx*dx + dy*dy) < threshold) { cluster.push(j); assigned[j] = clusters.length; }
+    }
+    clusters.push(cluster);
+  }
+  return clusters;
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────────────
+function buildTooltipHTML(allCourses, pinned, members) {
+  let html = '<div class="tooltip-header"><button class="tooltip-close" onclick="unpin()">&#x2715;</button></div>';
+  const groups = (members && members.length > 1) ? members : [{ courses: allCourses }];
+  for (const grp of groups) {
+    const c = grp.courses[0];
+    if (c.town) html += '<div class="tooltip-location">' + escHtml(c.town) + ', ' + escHtml(c.state) + '</div>';
+    for (const course of grp.courses) {
+      const sub  = course.linkerman || 'unknown';
+      const name = course.website
+        ? '<a href="' + escHtml(course.website) + '" target="_blank" rel="noopener">' + escHtml(course.links) + '</a>'
+        : escHtml(course.links);
+      html += '<div class="tooltip-course">'
+        + '<div class="tooltip-name">' + name + '</div>'
+        + '<div class="tooltip-meta">Submitted by ' + escHtml(sub) + '</div>'
+        + (course.notes ? '<div class="tooltip-notes">' + escHtml(course.notes) + '</div>' : '')
+        + '</div>';
+    }
+  }
+  if (!pinned) html += '<div class="tooltip-hint">Click to pin &amp; follow links</div>';
+  return html;
+}
+
+function showTooltip(event, allCourses, key, pin, members) {
+  tooltip.innerHTML = buildTooltipHTML(allCourses, pin, members);
+  tooltip.classList.add('visible');
+  tooltip.classList.toggle('pinned', !!pin);
+  positionTooltip(event);
+}
+function positionTooltip(event) {
+  const pad = 14; let x = event.clientX + pad, y = event.clientY + pad;
+  tooltip.style.left = '0'; tooltip.style.top = '0';
+  const tw = tooltip.offsetWidth || 290, th = tooltip.offsetHeight || 140;
+  if (x + tw > window.innerWidth  - pad) x = event.clientX - tw - pad;
+  if (y + th > window.innerHeight - pad) y = event.clientY - th - pad;
+  tooltip.style.left = x + 'px'; tooltip.style.top = y + 'px';
+}
+function hideTooltip() { tooltip.classList.remove('visible', 'pinned'); }
+function unpin() { pinnedKey = null; hideTooltip(); }
+window.unpin = unpin;
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Draw map ──────────────────────────────────────────────────────────────────
+async function drawMap(coursesByLocation) {
+  const svg  = d3.select('#map');
+  const proj = d3.geoAlbersUsa().scale(1280).translate([MAP_W/2, MAP_H/2]);
+  const path = d3.geoPath().projection(proj);
+  const us   = await d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json');
+
+  // Clip path
+  svg.append('defs').append('clipPath').attr('id', 'map-clip')
+    .append('rect').attr('width', MAP_W).attr('height', MAP_H);
+
+  // States group — receives zoom transform
+  const statesG = svg.append('g').attr('clip-path', 'url(#map-clip)');
+  statesG.append('g').selectAll('path')
+    .data(topojson.feature(us, us.objects.states).features)
+    .join('path').attr('class', 'state').attr('d', path);
+  statesG.append('path')
+    .datum(topojson.mesh(us, us.objects.states, (a,b) => a !== b))
+    .attr('class', 'state-border').attr('d', path);
+  statesG.append('path')
+    .datum(topojson.mesh(us, us.objects.states, (a,b) => a === b))
+    .attr('class', 'nation-border').attr('d', path);
+
+  // Markers group — NOT transformed; we reposition manually
+  const markersG = svg.append('g').attr('clip-path', 'url(#map-clip)');
+
+  // Pre-compute base (un-zoomed) projections
+  const basePoints = [];
+  for (const [locKey, courses] of Object.entries(coursesByLocation)) {
+    const { lat, lon } = courses[0]._coords;
+    const bp = proj([lon, lat]);
+    if (bp) basePoints.push({ locKey, courses, bx: bp[0], by: bp[1] });
+  }
+
+  // ── Render markers for a given zoom transform ──
+  function renderMarkers(t) {
+    markersG.selectAll('*').remove();
+
+    // Map base coords → current screen coords
+    const pts = basePoints.map(p => ({
+      ...p, sx: t.applyX(p.bx), sy: t.applyY(p.by)
+    }));
+
+    const clusters = clusterPoints(pts, CLUSTER_PX);
+
+    for (const cluster of clusters) {
+      const members  = cluster.map(i => pts[i]);
+      const cx = members.reduce((s,m) => s + m.sx, 0) / members.length;
+      const cy = members.reduce((s,m) => s + m.sy, 0) / members.length;
+      const allCourses = members.flatMap(m => m.courses);
+      const clusterKey = members.map(m => m.locKey).join('||');
+      const isCluster  = members.length > 1;
+
+      const g = markersG.append('g')
+        .attr('class', isCluster ? 'course-cluster' : ('course-flag' + (allCourses.length > 1 ? ' multi' : '')))
+        .attr('transform', 'translate(' + cx + ',' + cy + ')')
+        .attr('data-loc', clusterKey);
+
+      if (isCluster) {
+        const n = allCourses.length;
+        // back flag
+        g.append('line').attr('x1',5).attr('y1',4).attr('x2',5).attr('y2',-28)
+          .attr('stroke','#94a3b8').attr('stroke-width',1.8).attr('stroke-linecap','round');
+        g.append('polygon').attr('points','5,-28 21,-21 5,-14').attr('fill','#60a5fa').attr('opacity',0.65);
+        // front flag
+        g.append('line').attr('x1',0).attr('y1',4).attr('x2',0).attr('y2',-34)
+          .attr('stroke','#cbd5e1').attr('stroke-width',2).attr('stroke-linecap','round');
+        g.append('polygon').attr('points','0,-34 17,-27 0,-20').attr('fill','#60a5fa');
+        // badge
+        g.append('circle').attr('cx',14).attr('cy',-38).attr('r',10)
+          .attr('fill','#1e3a5f').attr('stroke','#60a5fa').attr('stroke-width',1.8);
+        g.append('text').attr('x',14).attr('y',-34)
+          .attr('text-anchor','middle').attr('font-size','10px')
+          .attr('font-family','Georgia,serif').attr('font-weight','bold')
+          .attr('fill','#e2e8f0').text(n);
+      } else {
+        const col = '#e63946';
+        g.append('line').attr('class','flag-pole').attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',-36);
+        g.append('polygon').attr('class','flag-shape').attr('points','0,-36 18,-29 0,-22').attr('fill',col);
+      }
+
+      // Hit area
+      g.append('rect')
+        .attr('x',-6).attr('y',-48).attr('width',30).attr('height',52)
+        .attr('fill','transparent')
+        .on('mousemove', (ev) => { if (pinnedKey !== clusterKey) showTooltip(ev, allCourses, clusterKey, false, isCluster ? members : null); })
+        .on('mouseleave', ()  => { if (pinnedKey !== clusterKey) hideTooltip(); })
+        .on('click', (ev) => {
+          ev.stopPropagation();
+          if (pinnedKey === clusterKey) { unpin(); }
+          else { pinnedKey = clusterKey; showTooltip(ev, allCourses, clusterKey, true, isCluster ? members : null); }
+        });
+    }
+  }
+
+  // ── Zoom behaviour ────────────────────────────────────────────────────────
+  let currentT = d3.zoomIdentity;
+
+  const zoom = d3.zoom()
+    .scaleExtent([1, 200])
+    .translateExtent([[0,0],[MAP_W,MAP_H]])
+    .on('zoom', (ev) => {
+      currentT = ev.transform;
+      statesG.attr('transform', ev.transform);
+      renderMarkers(ev.transform);
+      if (pinnedKey) unpin();   // dismiss tooltip while panning/zooming
+    });
+
+  svg.call(zoom)
+    .on('dblclick.zoom', null);  // disable default dblclick zoom (we handle below)
+
+  // Double-click: zoom in centred on cursor
+  svg.on('dblclick', (ev) => {
+    const [mx, my] = d3.pointer(ev);
+    svg.transition().duration(400)
+      .call(zoom.scaleBy, 2, [mx, my]);
+  });
+
+  // Zoom control buttons
+  document.getElementById('btn-zoom-in').addEventListener('click', () =>
+    svg.transition().duration(300).call(zoom.scaleBy, 1.6));
+  document.getElementById('btn-zoom-out').addEventListener('click', () =>
+    svg.transition().duration(300).call(zoom.scaleBy, 0.625));
+  document.getElementById('btn-zoom-reset').addEventListener('click', () =>
+    svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity));
+
+  // Click outside markers → unpin
+  document.addEventListener('click', (e) => {
+    if (pinnedKey && !tooltip.contains(e.target)) unpin();
+  });
+
+  renderMarkers(d3.zoomIdentity);
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+async function main() {
+  statusEl.textContent = 'Fetching courses from Google Sheets...';
+  let rows;
+  try {
+    const text = await fetch(SHEET_CSV_URL).then(r => r.text());
+    rows = parseCSV(text).filter(r => r.links && r.town && r.state);
+  } catch(e) {
+    statusEl.textContent = 'Could not load sheet. Make sure it is published to the web.';
+    await drawMap({}); return;
+  }
+
+  rows.forEach(r => {
+    if (r.website && !/^https?:\/\//i.test(r.website)) r.website = 'https://' + r.website;
+  });
+
+  const cache = loadGeoCache();
+  const uniqueLocs = [...new Set(rows.map(r => r.town + '|' + r.state))];
+  const locCoords  = {};
+
+  for (let i = 0; i < uniqueLocs.length; i++) {
+    const [town, state] = uniqueLocs[i].split('|');
+    statusEl.textContent = 'Geocoding locations... (' + (i+1) + '/' + uniqueLocs.length + ')';
+    if (!cache[(town+','+state).toLowerCase()]) await sleep(GEO_DELAY_MS);
+    const coords = await geocode(town, state, cache);
+    if (coords) locCoords[uniqueLocs[i]] = coords;
+  }
+
+  const coursesByLocation = {};
+  for (const row of rows) {
+    const k = row.town + '|' + row.state;
+    if (!locCoords[k]) continue;
+    row._coords = locCoords[k];
+    (coursesByLocation[k] = coursesByLocation[k] || []).push(row);
+  }
+
+  document.getElementById('stat-courses').textContent = rows.length;
+  document.getElementById('stat-towns').textContent   = Object.keys(coursesByLocation).length;
+  document.getElementById('stat-states').textContent  = new Set(rows.map(r => r.state)).size;
+
+  statusEl.textContent = '';
+  await drawMap(coursesByLocation);
+}
+
+main();
+</script>
+</body>
+</html>
