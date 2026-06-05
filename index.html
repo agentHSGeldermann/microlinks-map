@@ -111,6 +111,25 @@
     .tooltip-notes { font-size: 0.78rem; color: #4a7a52; font-style: italic; margin-top: 0.2rem; }
     .tooltip-hint  { font-size: 0.72rem; color: #3d5a45; margin-top: 0.5rem; text-align: center; }
 
+    .tooltip-course-body {
+      display: flex; gap: 0.6rem; align-items: flex-start;
+    }
+    .course-thumb {
+      width: 72px; height: 54px; object-fit: cover;
+      border-radius: 5px; flex-shrink: 0;
+      border: 1px solid #1e3a26;
+      background: #0f1f14;
+    }
+    .course-thumb.hidden { display: none; }
+    .course-thumb-placeholder {
+      width: 72px; height: 54px; flex-shrink: 0;
+      border-radius: 5px; border: 1px solid #1e3a26;
+      background: #0f1f14;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+    }
+    .course-text { flex: 1; min-width: 0; }
+
     #status {
       text-align: center; padding: 0.75rem 1rem;
       color: #5a8a62; font-size: 0.85rem; min-height: 2rem;
@@ -121,7 +140,7 @@
 
 <header>
   <h1>&#x26F3; MicroLinks Map</h1>
-  <p>Every course we can remember</p>
+  <p>2 in the Links...</p>
 </header>
 
 <div id="stats">
@@ -146,8 +165,9 @@
 <script>
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTIsnnFyzlvmykg6u-uu83Q4pF9aYGjjTYY8zvNC7jBzvwZcmU6l55DvYZBoFmP9kFAXC2oofcFEXyx/pub?output=csv';
 const GEOCACHE_KEY  = 'minigolf_geocache_v1';
+const OGCACHE_KEY   = 'minigolf_ogcache_v1';
 const GEO_DELAY_MS  = 1100;
-const CLUSTER_PX    = 44;   // screen-pixel clustering radius (fixed regardless of zoom)
+const CLUSTER_PX    = 44;
 const MAP_W = 960, MAP_H = 600;
 
 const statusEl = document.getElementById('status');
@@ -176,6 +196,34 @@ async function geocode(town, state, cache) {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── OG image fetching ─────────────────────────────────────────────────────────
+const ogCache = (() => { try { return JSON.parse(localStorage.getItem(OGCACHE_KEY)) || {}; } catch { return {}; } })();
+
+function saveOgCache() { localStorage.setItem(OGCACHE_KEY, JSON.stringify(ogCache)); }
+
+async function fetchOgImage(url) {
+  if (!url) return '';
+  if (url in ogCache) return ogCache[url];
+  try {
+    const api = 'https://api.microlink.io/?url=' + encodeURIComponent(url);
+    const data = await fetch(api).then(r => r.json());
+    const img = (data.data && data.data.image && data.data.image.url) ? data.data.image.url : '';
+    ogCache[url] = img;
+    saveOgCache();
+    return img;
+  } catch(e) {
+    ogCache[url] = '';
+    saveOgCache();
+    return '';
+  }
+}
+
+async function prefetchOgImages(rows) {
+  const urls = [...new Set(rows.map(r => r.website).filter(Boolean))];
+  // Fire all requests concurrently — Microlink has no strict rate limit for light usage
+  await Promise.all(urls.map(url => fetchOgImage(url)));
+}
 
 // ── CSV ───────────────────────────────────────────────────────────────────────
 function parseCSV(text) {
@@ -215,23 +263,38 @@ function clusterPoints(points, threshold) {
 }
 
 // ── Tooltip ───────────────────────────────────────────────────────────────────
+function buildCourseHTML(course) {
+  const sub    = course.linkerman || 'unknown';
+  const imgUrl = course.website ? (ogCache[course.website] || '') : '';
+  const name   = course.website
+    ? '<a href="' + escHtml(course.website) + '" target="_blank" rel="noopener">' + escHtml(course.links) + '</a>'
+    : escHtml(course.links);
+
+  let thumbHTML = '';
+  if (imgUrl) {
+    thumbHTML = '<img class="course-thumb" src="' + escHtml(imgUrl) + '" alt="" '
+      + 'onerror="this.classList.add(\'hidden\')">';
+  } else if (course.website) {
+    thumbHTML = '<div class="course-thumb-placeholder">⛳</div>';
+  }
+
+  return '<div class="tooltip-course">'
+    + '<div class="tooltip-course-body">'
+    + (thumbHTML ? thumbHTML : '')
+    + '<div class="course-text">'
+    + '<div class="tooltip-name">' + name + '</div>'
+    + '<div class="tooltip-meta">Submitted by ' + escHtml(sub) + '</div>'
+    + (course.notes ? '<div class="tooltip-notes">' + escHtml(course.notes) + '</div>' : '')
+    + '</div></div></div>';
+}
+
 function buildTooltipHTML(allCourses, pinned, members) {
   let html = '<div class="tooltip-header"><button class="tooltip-close" onclick="unpin()">&#x2715;</button></div>';
   const groups = (members && members.length > 1) ? members : [{ courses: allCourses }];
   for (const grp of groups) {
     const c = grp.courses[0];
     if (c.town) html += '<div class="tooltip-location">' + escHtml(c.town) + ', ' + escHtml(c.state) + '</div>';
-    for (const course of grp.courses) {
-      const sub  = course.linkerman || 'unknown';
-      const name = course.website
-        ? '<a href="' + escHtml(course.website) + '" target="_blank" rel="noopener">' + escHtml(course.links) + '</a>'
-        : escHtml(course.links);
-      html += '<div class="tooltip-course">'
-        + '<div class="tooltip-name">' + name + '</div>'
-        + '<div class="tooltip-meta">Submitted by ' + escHtml(sub) + '</div>'
-        + (course.notes ? '<div class="tooltip-notes">' + escHtml(course.notes) + '</div>' : '')
-        + '</div>';
-    }
+    for (const course of grp.courses) html += buildCourseHTML(course);
   }
   if (!pinned) html += '<div class="tooltip-hint">Click to pin &amp; follow links</div>';
   return html;
@@ -408,6 +471,9 @@ async function main() {
   rows.forEach(r => {
     if (r.website && !/^https?:\/\//i.test(r.website)) r.website = 'https://' + r.website;
   });
+
+  // Kick off og:image fetches in background — no await, tooltips fill in from cache
+  prefetchOgImages(rows);
 
   const cache = loadGeoCache();
   const uniqueLocs = [...new Set(rows.map(r => r.town + '|' + r.state))];
